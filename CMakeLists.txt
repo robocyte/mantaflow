@@ -158,6 +158,9 @@ SET(PP_SOURCES
 	source/plugin/waves.cpp
 	source/python/defines.py
 	source/test.cpp
+	source/ex1.cpp
+	source/ex2.cpp
+	source/ex3.cpp
 )
 
 SET(PP_HEADERS
