@@ -183,6 +183,7 @@ SET(PP_HEADERS
 	source/edgecollapse.h
 	source/vortexpart.h
 	source/turbulencepart.h
+	source/pcgsolver.h
 )
 
 # no pre-processing needed
