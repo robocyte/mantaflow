@@ -23,27 +23,37 @@
 #include <stack>
 
 using namespace std;
-namespace Manta {
 
-Mesh::Mesh(FluidSolver* parent) : PbClass(parent) {  
+namespace Manta
+{
+
+//******************************************************************************
+// Mesh class members
+//******************************************************************************
+Mesh::Mesh(FluidSolver* parent)
+    : PbClass(parent)
+{  
 }
 
-Mesh::~Mesh() {
+Mesh::~Mesh()
+{
 }
 
-Mesh* Mesh::clone() {
+Mesh* Mesh::clone()
+{
 	Mesh* nm = new Mesh(mParent);
 	*nm = *this;
 	nm->setName(getName());
 	return nm;
 }
 
-Real Mesh::computeCenterOfMass(Vec3& cm) const {
-	
+Real Mesh::computeCenterOfMass(Vec3& cm) const
+{
 	// use double precision for summation, otherwise too much error accumulation
 	double vol=0;
 	Vector3D<double> cmd(0.0);
-	for(size_t tri=0; tri < mTris.size(); tri++) {
+	for(size_t tri=0; tri < mTris.size(); tri++)
+    {
 		Vector3D<double> p1(toVec3d(getNode(tri,0)));
 		Vector3D<double> p2(toVec3d(getNode(tri,1)));
 		Vector3D<double> p3(toVec3d(getNode(tri,2)));
@@ -52,13 +62,15 @@ Real Mesh::computeCenterOfMass(Vec3& cm) const {
 		cmd += (p1+p2+p3) * (cvol/4.0);
 		vol += cvol;
 	}
+
 	if (vol != 0.0) cmd /= vol;    
 	
 	cm = toVec3(cmd);     
 	return (Real) vol;
 }
 
-void Mesh::clear() {
+void Mesh::clear()
+{
 	mNodes.clear();
 	mTris.clear();
 	mCorners.clear();    
@@ -69,7 +81,8 @@ void Mesh::clear() {
 		mTriChannels[i]->resize(0);
 }
 
-Mesh& Mesh::operator=(const Mesh& o) {
+Mesh& Mesh::operator=(const Mesh& o)
+{
 	// wipe current data
 	clear();
 	if (mNodeChannels.size() != o.mNodeChannels.size() ||
@@ -93,7 +106,8 @@ Mesh& Mesh::operator=(const Mesh& o) {
 	return *this;
 }
 
-void Mesh::load(string name, bool append) {
+void Mesh::load(string name, bool append)
+{
 	if (name.find_last_of('.') == string::npos)
 		errMsg("file '" + name + "' does not have an extension");
 	string ext = name.substr(name.find_last_of('.'));
@@ -104,13 +118,13 @@ void Mesh::load(string name, bool append) {
 	else
 		errMsg("file '" + name +"' filetype not supported");
 
-
 	// dont always rebuild...
 	//rebuildCorners();
 	//rebuildLookup();
 }
 
-void Mesh::save(string name) {
+void Mesh::save(string name)
+{
 	if (name.find_last_of('.') == string::npos)
 		errMsg("file '" + name + "' does not have an extension");
 	string ext = name.substr(name.find_last_of('.'));
@@ -122,36 +136,44 @@ void Mesh::save(string name) {
 		errMsg("file '" + name +"' filetype not supported");
 }
 
-void Mesh::fromShape(Shape& shape, bool append) {
+void Mesh::fromShape(Shape& shape, bool append)
+{
 	if (!append)
 		clear();
 	shape.generateMesh(this);
 }
 
-void Mesh::resizeTris(int numTris) {
+void Mesh::resizeTris(int numTris)
+{
 	mTris .resize(numTris );
 	rebuildChannels();
 }
-void Mesh::resizeNodes(int numNodes) {
+
+void Mesh::resizeNodes(int numNodes)
+{
 	mNodes.resize(numNodes);
 	rebuildChannels();
 }
 
 //! do a quick check whether a rebuild is necessary, and if yes do rebuild
-void Mesh::rebuildQuickCheck() {
+void Mesh::rebuildQuickCheck()
+{
 	if(mCorners.size() != 3*mTris.size())
 		rebuildCorners();
 	if(m1RingLookup.size() != mNodes.size())
 		rebuildLookup();
 }
 
-void Mesh::rebuildCorners(int from, int to) {
+void Mesh::rebuildCorners(int from, int to)
+{
 	mCorners.resize(3*mTris.size());
 	if (to < 0) to = mTris.size();        
 	
 	// fill in basic info
-	for (int tri=from; tri<to; tri++) {
-		for (int c=0; c<3; c++) {            
+	for (int tri=from; tri<to; tri++)
+    {
+		for (int c=0; c<3; c++)
+        {            
 			const int idx = tri*3+c;
 			mCorners[idx].tri = tri;
 			mCorners[idx].node = mTris[tri].c[c];
@@ -163,12 +185,14 @@ void Mesh::rebuildCorners(int from, int to) {
 	
 	// set opposite info
 	int maxc = to*3;
-	for (int c=from*3; c<maxc; c++) {  
+	for (int c=from*3; c<maxc; c++)
+    {  
 		int next = mCorners[mCorners[c].next].node;
 		int prev = mCorners[mCorners[c].prev].node;
 		
 		// find corner with same next/prev nodes
-		for (int c2=c+1; c2<maxc; c2++) {
+		for (int c2=c+1; c2<maxc; c2++)
+        {
 			int next2 = mCorners[mCorners[c2].next].node;
 			if (next2 != next && next2 != prev) continue;
 			int prev2 = mCorners[mCorners[c2].prev].node;
@@ -179,7 +203,9 @@ void Mesh::rebuildCorners(int from, int to) {
 			mCorners[c2].opposite = c;
 			break;
 		}
-		if (mCorners[c].opposite < 0) {
+
+		if (mCorners[c].opposite < 0)
+        {
 			// didn't find opposite
 			errMsg("can't rebuild corners, index without an opposite");
 		}
@@ -188,12 +214,15 @@ void Mesh::rebuildCorners(int from, int to) {
 	rebuildChannels();
 }
 
-void Mesh::rebuildLookup(int from, int to) {
+void Mesh::rebuildLookup(int from, int to)
+{
 	if (from==0 && to<0) m1RingLookup.clear();
 	m1RingLookup.resize(mNodes.size());
 	if (to<0) to = mTris.size();
 	from *=3; to *= 3;
-	for (int i=from; i< to; i++) {
+
+	for (int i=from; i< to; i++)
+    {
 		const int node = mCorners[i].node;
 		m1RingLookup[node].nodes.insert(mCorners[mCorners[i].next].node);
 		m1RingLookup[node].nodes.insert(mCorners[mCorners[i].prev].node);
@@ -201,42 +230,92 @@ void Mesh::rebuildLookup(int from, int to) {
 	}
 }
 
-void Mesh::rebuildChannels() {
+void Mesh::rebuildChannels()
+{
 	for(size_t i=0; i<mTriChannels.size(); i++)
 		mTriChannels[i]->resize(mTris.size());
 	for(size_t i=0; i<mNodeChannels.size(); i++)
 		mNodeChannels[i]->resize(mNodes.size());   
 }
 
-KERNEL(pts) returns(vector<Vec3> u(size))
-vector<Vec3> KnAdvectMeshInGrid(vector<Node>& nodes, const FlagGrid& flags, const MACGrid& vel, const Real dt) {
-	if (nodes[idx].flags & Mesh::NfFixed) 
-		u[idx] = _0;
-	else if (!flags.isInBounds(nodes[idx].pos,1)) 
-		u[idx] = _0;
-	else 
-		u[idx] = vel.getInterpolated(nodes[idx].pos) * dt;
-}
+struct KnAdvectMeshInGrid : public KernelBase
+{
+    KnAdvectMeshInGrid(vector<Node>& nodes, const FlagGrid& flags, const MACGrid& vel, const Real dt)
+        : KernelBase(nodes.size())
+        , nodes(nodes)
+        , flags(flags)
+        , vel(vel)
+        , dt(dt)
+        , u((size))
+    {
+        run();
+    }
+    
+    inline void op(int idx, vector<Node>& nodes, const FlagGrid& flags, const MACGrid& vel, const Real dt ,vector<Vec3> & u)
+    {
+	    if (nodes[idx].flags & Mesh::NfFixed) 
+		    u[idx] = _0;
+	    else if (!flags.isInBounds(nodes[idx].pos,1)) 
+		    u[idx] = _0;
+	    else 
+		    u[idx] = vel.getInterpolated(nodes[idx].pos) * dt;
+    }
+
+    inline operator vector<Vec3> () { return u; }
+    inline vector<Vec3> & getRet() { return u; }
+    inline vector<Node>& getArg0() { return nodes; }
+    typedef vector<Node> type0;
+    inline const FlagGrid& getArg1() { return flags; }
+    typedef FlagGrid type1;
+    inline const MACGrid& getArg2() { return vel; }
+    typedef MACGrid type2;
+    inline const Real& getArg3() { return dt; }
+    typedef Real type3;
+    
+    void run()
+    {
+        const int _sz = size;
+#pragma omp parallel
+        {
+            this->threadId = omp_get_thread_num();
+            this->threadNum = omp_get_num_threads();
+#pragma omp for
+            for (int i=0; i < _sz; i++)
+                op(i,nodes,flags,vel,dt,u);
+        }
+    }
+    
+    vector<Node>& nodes;
+    const FlagGrid& flags;
+    const MACGrid& vel;
+    const Real dt;
+    vector<Vec3> u;
+};
 
 // advection plugin
-void Mesh::advectInGrid(FlagGrid& flaggrid, MACGrid& vel, int integrationMode) {
+void Mesh::advectInGrid(FlagGrid& flaggrid, MACGrid& vel, int integrationMode)
+{
 	KnAdvectMeshInGrid kernel(mNodes, flaggrid, vel, getParent()->getDt());
-	integratePointSet( kernel, integrationMode);    
+	integratePointSet(kernel, integrationMode);
 }
 
-void Mesh::scale(Vec3 s) {
+void Mesh::scale(Vec3 s)
+{
 	for (size_t i=0; i<mNodes.size(); i++)
 		mNodes[i].pos *= s;
 }
 
-void Mesh::offset(Vec3 o) {
+void Mesh::offset(Vec3 o)
+{
 	for (size_t i=0; i<mNodes.size(); i++)
 		mNodes[i].pos += o;
 }
 
-void Mesh::removeTri(int tri) {
+void Mesh::removeTri(int tri)
+{
 	// delete triangles by overwriting them with elements from the end of the array.
-	if(tri!=(int)mTris.size()-1) {
+	if(tri!=(int)mTris.size()-1)
+    {
 		// if this is the last element, and it is marked for deletion,
 		// don't waste cycles transfering data to itself,
 		// and DEFINITELY don't transfer .opposite data to other, untainted triangles.
@@ -283,7 +362,8 @@ void Mesh::removeTri(int tri) {
 	mCorners.resize(mTris.size()*3);
 }
 
-void Mesh::removeNodes(const vector<int>& deletedNodes) {
+void Mesh::removeNodes(const vector<int>& deletedNodes)
+{
 	// After we delete the nodes that are marked for removal,
 	// the size of mNodes will be the current size - the size of the deleted array.
 	// We are going to move the elements at the end of the array
@@ -296,11 +376,14 @@ void Mesh::removeNodes(const vector<int>& deletedNodes) {
 	int di,ni;
 	for(ni=0; ni<(int)new_index.size(); ni++)
 		new_index[ni] = 0;
-	for(di=0; di<(int)deletedNodes.size(); di++) {
+	for(di=0; di<(int)deletedNodes.size(); di++)
+    {
 		if(deletedNodes[di] >= newsize)
 			new_index[deletedNodes[di]-newsize] = -1;   // tag this node as invalid
 	}
-	for(di=0,ni=0; ni<(int)new_index.size(); ni++,di++) {
+
+	for(di=0,ni=0; ni<(int)new_index.size(); ni++,di++)
+    {
 		// we need to find a valid node to move
 		// we marked invalid nodes in the earlier loop with a (-1),
 		// so pick anything but those
@@ -322,10 +405,12 @@ void Mesh::removeNodes(const vector<int>& deletedNodes) {
 	// Now we have a map of valid indices.
 	// we move node[newsize+i] to location new_index[i].
 	// We ignore the nodes with a -1 index, because they should not be moved.
-	for(int i=0; i<(int)new_index.size(); i++) {
+	for(int i=0; i<(int)new_index.size(); i++)
+    {
 		if(new_index[i]!=-1)
 			mNodes[ new_index[i] ] = mNodes[ newsize+i ];
 	}
+
 	mNodes.resize(newsize);
 	
 	// handle vertex properties
@@ -333,9 +418,12 @@ void Mesh::removeNodes(const vector<int>& deletedNodes) {
 		mNodeChannels[i]->renumber(new_index, newsize);
 		
 	// finally, we reconnect everything that used to point to this vertex.
-	for(size_t tri=0, n=0; tri<mTris.size(); tri++) {
-		for (int c=0; c<3; c++,n++) {
-			if (mCorners[n].node >= newsize) {
+	for(size_t tri=0, n=0; tri<mTris.size(); tri++)
+    {
+		for (int c=0; c<3; c++,n++)
+        {
+			if (mCorners[n].node >= newsize)
+            {
 				int newindex = new_index[mCorners[n].node - newsize];
 				mCorners[n].node = newindex;
 				mTris[mCorners[n].tri].c[c] = newindex;
@@ -344,27 +432,34 @@ void Mesh::removeNodes(const vector<int>& deletedNodes) {
 	}    
 	
 	// renumber 1-ring
-	for(int i=0; i<(int)new_index.size(); i++) {
+	for(int i=0; i<(int)new_index.size(); i++)
+    {
 		if(new_index[i]!=-1) {
 			m1RingLookup[new_index[i]].nodes.swap(m1RingLookup[newsize+i].nodes);
 			m1RingLookup[new_index[i]].tris.swap(m1RingLookup[newsize+i].tris);
 		}
-	}    
+	}
+
 	m1RingLookup.resize(newsize);
 	vector<int> reStack(new_index.size());
-	for(int i=0; i<newsize; i++) {
+	for(int i=0; i<newsize; i++)
+    {
 		set<int>& cs = m1RingLookup[i].nodes;
 		int reNum = 0;
 		// find all nodes > newsize
 		set<int>::reverse_iterator itend = cs.rend();
-		for (set<int>::reverse_iterator it = cs.rbegin(); it != itend; ++it) {
+		for (set<int>::reverse_iterator it = cs.rbegin(); it != itend; ++it)
+        {
 			if (*it < newsize) break;
 			reStack[reNum++] = *it;
 		}
+
 		// kill them and insert shifted values
-		if (reNum > 0) {
+		if (reNum > 0)
+        {
 			cs.erase(cs.find(reStack[reNum-1]), cs.end());        
-			for (int j=0; j<reNum; j++) {
+			for (int j=0; j<reNum; j++)
+            {
 				cs.insert(new_index[reStack[j]-newsize]);
 #ifdef DEBUG
 				 if (new_index[reStack[j]-newsize] == -1)
@@ -375,46 +470,61 @@ void Mesh::removeNodes(const vector<int>& deletedNodes) {
 	}
 }
 
-void Mesh::mergeNode(int node, int delnode) {
+void Mesh::mergeNode(int node, int delnode)
+{
 	set<int>& ring = m1RingLookup[delnode].nodes;
-	for(set<int>::iterator it = ring.begin(); it != ring.end(); ++it) {
+	for(set<int>::iterator it = ring.begin(); it != ring.end(); ++it)
+    {
 		m1RingLookup[*it].nodes.erase(delnode);
-		if (*it != node) {
+		if (*it != node)
+        {
 			m1RingLookup[*it].nodes.insert(node);
 			m1RingLookup[node].nodes.insert(*it);
 		}
 	}
+
 	set<int>& ringt = m1RingLookup[delnode].tris;
-	for(set<int>::iterator it = ringt.begin(); it != ringt.end(); ++it) {
+	for(set<int>::iterator it = ringt.begin(); it != ringt.end(); ++it)
+    {
 		const int t = *it;
-		for (int c=0; c<3; c++) {
-			if (mCorners[3*t+c].node == delnode) {
+		for (int c=0; c<3; c++)
+        {
+			if (mCorners[3*t+c].node == delnode)
+            {
 				mCorners[3*t+c].node = node;
 				mTris[t].c[c] = node;
 			}
 		}
+
 		m1RingLookup[node].tris.insert(t);
 	}
-	for(size_t i=0; i<mNodeChannels.size(); i++) { 
+
+	for(size_t i=0; i<mNodeChannels.size(); i++)
+    { 
 		// weight is fixed to 1/2 for now
 		mNodeChannels[i]->mergeWith(node, delnode, 0.5);
 	}
 }
 
-void Mesh::removeTriFromLookup(int tri) {
-	for(int c=0; c<3; c++) {
+void Mesh::removeTriFromLookup(int tri)
+{
+	for(int c=0; c<3; c++)
+    {
 		int node = mTris[tri].c[c];
 		m1RingLookup[node].tris.erase(tri);
 	}
 }
 
-void Mesh::addCorner(Corner a) {
+void Mesh::addCorner(Corner a)
+{
 	mCorners.push_back(a);    
 }
 
-int Mesh::addTri(Triangle a) {
+int Mesh::addTri(Triangle a)
+{
 	mTris.push_back(a);
-	for (int c=0;c<3;c++) {
+	for (int c=0;c<3;c++)
+    {
 		int node = a.c[c];
 		int nextnode = a.c[(c+1)%3];
 		if ((int)m1RingLookup.size() <= node) m1RingLookup.resize(node+1);
@@ -423,21 +533,27 @@ int Mesh::addTri(Triangle a) {
 		m1RingLookup[nextnode].nodes.insert(node);
 		m1RingLookup[node].tris.insert(mTris.size()-1);
 	}
+
 	return mTris.size()-1;
 }
 
-int Mesh::addNode(Node a) {
+int Mesh::addNode(Node a)
+{
 	mNodes.push_back(a);
 	if (m1RingLookup.size() < mNodes.size())
 		m1RingLookup.resize(mNodes.size());
 	return mNodes.size()-1;
 }
 
-void Mesh::computeVertexNormals() {
-	for (size_t i=0; i<mNodes.size(); i++) {
+void Mesh::computeVertexNormals()
+{
+	for (size_t i=0; i<mNodes.size(); i++)
+    {
 		mNodes[i].normal = 0.0;
 	}
-	for (size_t t=0; t<mTris.size(); t++) {
+
+	for (size_t t=0; t<mTris.size(); t++)
+    {
 		Vec3 p0 = getNode(t,0), p1 = getNode(t,1), p2 = getNode(t,2);        
 		Vec3 n0 = p0-p1, n1 = p1-p2, n2 = p2-p0;
 		Real l0 = normSquare(n0), l1 = normSquare(n1), l2 = normSquare(n2);
@@ -448,18 +564,22 @@ void Mesh::computeVertexNormals() {
 		mNodes[mTris[t].c[1]].normal += nm * (1.0 / (l0*l1));
 		mNodes[mTris[t].c[2]].normal += nm * (1.0 / (l1*l2));
 	}
-	for (size_t i=0; i<mNodes.size(); i++) {
+
+	for (size_t i=0; i<mNodes.size(); i++)
+    {
 		normalize(mNodes[i].normal);
 	}
 }
 
-void Mesh::fastNodeLookupRebuild(int corner) {    
+void Mesh::fastNodeLookupRebuild(int corner)
+{    
 	int node = mCorners[corner].node;
 	m1RingLookup[node].nodes.clear();
 	m1RingLookup[node].tris.clear();
 	int start = mCorners[corner].prev;
 	int current = start;
-	do {
+	do
+    {
 		m1RingLookup[node].nodes.insert(mCorners[current].node);
 		m1RingLookup[node].tris.insert(mCorners[current].tri);
 		current = mCorners[mCorners[current].opposite].next;
@@ -468,21 +588,29 @@ void Mesh::fastNodeLookupRebuild(int corner) {
 	} while (current != start);
 }
 
-void Mesh::sanityCheck(bool strict, vector<int>* deletedNodes, map<int,bool>* taintedTris) {
+void Mesh::sanityCheck(bool strict, vector<int>* deletedNodes, map<int,bool>* taintedTris)
+{
 	const int nodes = numNodes(), tris = numTris(), corners = 3*tris;
-	for(size_t i=0; i<mNodeChannels.size(); i++) {
+	for(size_t i=0; i<mNodeChannels.size(); i++)
+    {
 		if (mNodeChannels[i]->size() != nodes)
 			errMsg("Node channel size mismatch");
 	}
-	for(size_t i=0; i<mTriChannels.size(); i++) {
+
+	for(size_t i=0; i<mTriChannels.size(); i++)
+    {
 		if (mTriChannels[i]->size() != tris)
 			errMsg("Tri channel size mismatch");
 	}
+
 	if ((int)m1RingLookup.size() != nodes)
 		errMsg("1Ring size wrong");
-	for(size_t t=0; t<mTris.size(); t++) { 
+
+	for(size_t t=0; t<mTris.size(); t++)
+    { 
 		if (taintedTris && taintedTris->find(t) != taintedTris->end()) continue;
-		for (int c=0; c<3; c++) {
+		for (int c=0; c<3; c++)
+        {
 			int corner = t*3+c;
 			int node = mTris[t].c[c];
 			int next = mTris[t].c[(c+1)%3];
@@ -504,51 +632,66 @@ void Mesh::sanityCheck(bool strict, vector<int>* deletedNodes, map<int,bool>* ta
 				errMsg("invalid opposite ref");
 			set<int>& rnodes = m1RingLookup[node].nodes;
 			set<int>& rtris = m1RingLookup[node].tris;
-			if (rnodes.find(next) == rnodes.end() || rnodes.find(prev) == rnodes.end()) {
+			if (rnodes.find(next) == rnodes.end() || rnodes.find(prev) == rnodes.end())
+            {
 				debMsg("Tri "<< t << " " << node << " " << next << " " << prev , 1);
 				for(set<int>::iterator it= rnodes.begin(); it != rnodes.end(); ++it)
 					debMsg( *it , 1);
 				errMsg("node missing in 1ring");
 			}
-			if (rtris.find(t) == rtris.end()) {
+
+			if (rtris.find(t) == rtris.end())
+            {
 			   debMsg("Tri "<< t << " " << node , 1);
 			   errMsg("tri missing in 1ring");
 			}
 		}
 	}
-	for (int n=0; n<nodes; n++) {
+
+	for (int n=0; n<nodes; n++)
+    {
 		bool docheck=true;
 		if (deletedNodes)
 			for (size_t e=0; e<deletedNodes->size(); e++)
 				if ((*deletedNodes)[e] == n) docheck=false;;
 		
-		if (docheck) {
+		if (docheck)
+        {
 			set<int>& sn = m1RingLookup[n].nodes;
 			set<int>& st = m1RingLookup[n].tris;
 			set<int> sn2;
 			
-			for (set<int>::iterator it=st.begin(); it != st.end(); ++it) {
+			for (set<int>::iterator it=st.begin(); it != st.end(); ++it)
+            {
 				bool found = false;
-				for (int c=0; c<3; c++) {
+				for (int c=0; c<3; c++)
+                {
 					if (mTris[*it].c[c] == n)
 						found = true;
 					else
 						sn2.insert(mTris[*it].c[c]);
-				}            
-				if (!found) {
+				}   
+
+				if (!found)
+                {
 					cout << *it << " " << n << endl;
 					for (int c=0; c<3; c++) cout << mTris[*it].c[c] << endl;
 					errMsg("invalid triangle in 1ring");
 				}
-				if (taintedTris && taintedTris->find(*it) != taintedTris->end()) {
+
+				if (taintedTris && taintedTris->find(*it) != taintedTris->end())
+                {
 					cout << *it << endl;
 					errMsg("tainted tri still is use");
 				}
 			}
+
 			if (sn.size() != sn2.size())
 				errMsg("invalid nodes in 1ring");
-			for (set<int>::iterator it=sn.begin(), it2=sn2.begin(); it != sn.end(); ++it,++it2) {
-				if (*it != *it2) {
+			for (set<int>::iterator it=sn.begin(), it2=sn2.begin(); it != sn.end(); ++it,++it2)
+            {
+				if (*it != *it2)
+                {
 					cout << "Node " << n << ": " << *it << " vs " << *it2 << endl;
 					errMsg("node ring mismatch");
 				}
@@ -557,52 +700,66 @@ void Mesh::sanityCheck(bool strict, vector<int>* deletedNodes, map<int,bool>* ta
 	}
 }
 
+
+
 //*****************************************************************************
 // rasterization
-
+//*****************************************************************************
 void meshSDF(Mesh& mesh, LevelsetGrid& levelset, Real sigma, Real cutoff = 0.);
 
 //! helper vec3 array container
-struct CVec3Ptr {
+struct CVec3Ptr
+{
 	Real *x, *y, *z; 
 	inline Vec3 get(int i) const { return Vec3(x[i],y[i],z[i]); };
 	inline void set(int i, const Vec3& v) { x[i]=v.x; y[i]=v.y; z[i]=v.z; };
 };
+
 //! helper vec3 array, for CUDA compatibility, remove at some point
-struct CVec3Array {    
-	CVec3Array(int sz) {
+struct CVec3Array
+{    
+	CVec3Array(int sz)
+    {
 		x.resize(sz);
 		y.resize(sz);
 		z.resize(sz);        
-	}    
-	CVec3Array(const std::vector<Vec3>& v) {
+	}   
+
+	CVec3Array(const std::vector<Vec3>& v)
+    {
 		x.resize(v.size());
 		y.resize(v.size());
 		z.resize(v.size());
-		for (size_t i=0; i<v.size(); i++) {
+		for (size_t i=0; i<v.size(); i++)
+        {
 			x[i] = v[i].x;
 			y[i] = v[i].y;
 			z[i] = v[i].z;
 		}
 	}
-	CVec3Ptr data() {
+
+	CVec3Ptr data()
+    {
 		CVec3Ptr a = { x.data(), y.data(), z.data()};
 		return a;
 	}
+
 	inline const Vec3 operator[](int idx) const { return Vec3((Real)x[idx], (Real)y[idx], (Real)z[idx]); }
 	inline void set(int idx, const Vec3& v) { x[idx] = v.x; y[idx] = v.y; z[idx] = v.z; }	
 	inline int size() { return x.size(); }    
 	std::vector<Real> x, y, z;
 };
 
-	
 //void SDFKernel(const int* partStart, const int* partLen, CVec3Ptr pos, CVec3Ptr normal, Real* sdf, Vec3i gridRes, int intRadius, Real safeRadius2, Real cutoff2, Real isigma2);
 //! helper for rasterization
 static void SDFKernel(Grid<int>& partStart, Grid<int>& partLen, CVec3Ptr pos, CVec3Ptr normal, LevelsetGrid& sdf, Vec3i gridRes, int intRadius, Real safeRadius2, Real cutoff2, Real isigma2)
 {
-	for (int cnt_x(0); cnt_x < gridRes[0]; ++cnt_x) {
-		for (int cnt_y(0); cnt_y < gridRes[1]; ++cnt_y) {
-			for (int cnt_z(0); cnt_z < gridRes[2]; ++cnt_z) {
+	for (int cnt_x(0); cnt_x < gridRes[0]; ++cnt_x)
+    {
+		for (int cnt_y(0); cnt_y < gridRes[1]; ++cnt_y)
+        {
+			for (int cnt_z(0); cnt_z < gridRes[2]; ++cnt_z)
+            {
 				// cell index, center
 				Vec3i cell = Vec3i(cnt_x, cnt_y, cnt_z);
 				if (cell.x >= gridRes.x || cell.y >= gridRes.y || cell.z >= gridRes.z) return;    
@@ -615,7 +772,8 @@ static void SDFKernel(Grid<int>& partStart, Grid<int>& partLen, CVec3Ptr pos, CV
 				Vec3i maxBlock = Vec3i(min(cell.x + intRadius, gridRes.x - 1), min(cell.y + intRadius, gridRes.y - 1), min(cell.z + intRadius, gridRes.z - 1)); 
 				for (int i=minBlock.x; i<=maxBlock.x; i++)
 					for (int j=minBlock.y; j<=maxBlock.y; j++)
-						for (int k=minBlock.z; k<=maxBlock.z; k++) {
+						for (int k=minBlock.z; k<=maxBlock.z; k++)
+                        {
 							// test if block is within radius
 							Vec3 d = Vec3(cell.x-i, cell.y-j, cell.z-k);                
 							Real normSqr = d[0]*d[0] + d[1]*d[1] + d[2]*d[2]; 
@@ -628,68 +786,48 @@ static void SDFKernel(Grid<int>& partStart, Grid<int>& partLen, CVec3Ptr pos, CV
 							int start = partStart[block];
 							
 							// process sources
-							for(int s=0; s<slen; s++) {                     
+							for(int s=0; s<slen; s++)
+                            {                     
 								
 								// actual sdf kernel
 								Vec3 r = cpos - pos.get(start+s);
 								Real normSqr = r[0]*r[0] + r[1]*r[1] + r[2]*r[2]; 
 								Real r2 = normSqr;
-								if (r2 < cutoff2) {
+								if (r2 < cutoff2)
+                                {
 									Real w = expf(-r2*isigma2);
 									sum += w;
 									dist += dot(normal.get(start+s), r) * w;                        
 								}
 							}
 						}
+
 				// writeback
-				if (sum > 0.0f) {
+				if (sum > 0.0f)
+                {
 					//sdf[cell.x + gridRes.x * (cell.y + gridRes.y * cell.z)] = dist / sum;    
-					sdf(cell.x ,cell.y ,cell.z) = dist / sum;    
+					sdf(cell.x, cell.y, cell.z) = dist / sum;
 				}
 			}	
 		}
 	}
 }
 
-static inline int _cIndex(const Vec3& pos, const Vec3i& s) {
+static inline int _cIndex(const Vec3& pos, const Vec3i& s)
+{
 	Vec3i p = toVec3i(pos);
 	if (p.x < 0 || p.y < 0 || p.z < 0 || p.x >= s.x || p.y >= s.y || p.z >= s.z) return -1;
 	return p.x + s.x * (p.y + s.y * p.z);
 }
 
-//! Kernel: Apply a shape to a grid, setting value inside
-KERNEL() template<class T> 
-void ApplyMeshToGrid (Grid<T>* grid, Grid<Real> sdf, T value, FlagGrid* respectFlags) {
-	if (respectFlags && respectFlags->isObstacle(i,j,k))
-		return;
-	if (sdf(i,j,k) < 0)
-	{	
-		(*grid)(i,j,k) = value;
-	}
-}
-
-void Mesh::applyMeshToGrid(GridBase* grid, FlagGrid* respectFlags, Real cutoff) {
-	FluidSolver dummy(grid->getSize());
-	LevelsetGrid mesh_sdf(&dummy, false);
-	meshSDF(*this, mesh_sdf, 2., cutoff);
-	
-	if (grid->getType() & GridBase::TypeInt)
-		ApplyMeshToGrid<int> ((Grid<int>*)grid, mesh_sdf, _args.get<int>("value"), respectFlags);
-	else if (grid->getType() & GridBase::TypeReal)
-		ApplyMeshToGrid<Real> ((Grid<Real>*)grid, mesh_sdf, _args.get<Real>("value"), respectFlags);
-	else if (grid->getType() & GridBase::TypeVec3)
-		ApplyMeshToGrid<Vec3> ((Grid<Vec3>*)grid, mesh_sdf, _args.get<Vec3>("value"), respectFlags);
-	else
-		errMsg("Shape::applyToGrid(): unknown grid type");
-}
-
-void Mesh::computeLevelset(LevelsetGrid& levelset, Real sigma, Real cutoff) {
-	meshSDF( *this, levelset, sigma, cutoff); 
+void Mesh::computeLevelset(LevelsetGrid& levelset, Real sigma, Real cutoff)
+{
+	meshSDF(*this, levelset, sigma, cutoff); 
 }
 
 void meshSDF(Mesh& mesh, LevelsetGrid& levelset, Real sigma, Real cutoff)
 {  
-	if (cutoff<0) cutoff = 2*sigma;
+	if (cutoff < 0) cutoff = 2 * sigma;
 	Real maxEdgeLength = 0.75;
 	Real numSamplesPerCell = 0.75;
 	
@@ -701,38 +839,44 @@ void meshSDF(Mesh& mesh, LevelsetGrid& levelset, Real sigma, Real cutoff)
 	std::vector<Vec3> normals;
 	short bigEdges(0);
 	std::vector<Vec3> samplePoints;
-	for(int i=0; i<mesh.numTris(); i++){	
+
+	for(int i=0; i<mesh.numTris(); i++)
+    {	
 		center.push_back(Vec3(mesh.getFaceCenter(i) * mult));
 		normals.push_back(mesh.getFaceNormal(i));
 		//count big, stretched edges
 		bigEdges = 0;
-		for (short edge(0); edge <3; ++edge){
-			if(norm(mesh.getEdge(i,edge)) > maxEdgeLength){
+		for (short edge(0); edge <3; ++edge)
+        {
+			if(norm(mesh.getEdge(i,edge)) > maxEdgeLength)
+            {
 				bigEdges += 1 << edge;
 			}
 		}
-		if(bigEdges > 0){
+
+		if(bigEdges > 0)
+        {
 			samplePoints.clear();
 			short iterA, pointA, iterB, pointB;
 			int numSamples0 = norm(mesh.getEdge(i,1)) * numSamplesPerCell;
 			int numSamples1 = norm(mesh.getEdge(i,2)) * numSamplesPerCell;
 			int numSamples2 = norm(mesh.getEdge(i,0)) * numSamplesPerCell;
-			if(! (bigEdges & (1 << 0))){
+			if(! (bigEdges & (1 << 0)))
+            {
 				//loop through 0,1
 				iterA = numSamples1;
 				pointA = 0;
 				iterB = numSamples2;
 				pointB = 1;
-			}
-			else if(! (bigEdges & (1 << 1))){
+			} else if(! (bigEdges & (1 << 1)))
+            {
 				//loop through 1,2
 				iterA = numSamples2;
 				pointA = 1;
 				iterB = numSamples0;
 				pointB = 2;
-				
-			}
-			else{
+			} else
+            {
 				//loop through 2,0
 				iterA = numSamples0;
 				pointA = 2;
@@ -742,9 +886,11 @@ void meshSDF(Mesh& mesh, LevelsetGrid& levelset, Real sigma, Real cutoff)
 			
 			Real u(0.),v(0.),w(0.); // barycentric uvw coords
 			Vec3 samplePoint,normal;
-			for (int sample0(0); sample0 < iterA; ++sample0){
+			for (int sample0(0); sample0 < iterA; ++sample0)
+            {
 				u = Real(1. * sample0 / iterA);
-				for (int sample1(0); sample1 < iterB; ++sample1){
+				for (int sample1(0); sample1 < iterB; ++sample1)
+                {
 					v = Real(1. * sample1 / iterB);
 					w = 1 - u - v;
 					if (w < 0.)
@@ -757,17 +903,19 @@ void meshSDF(Mesh& mesh, LevelsetGrid& levelset, Real sigma, Real cutoff)
 					normals.push_back(normal);							
 				}
 			}
+
 			center.insert(center.end(), samplePoints.begin(), samplePoints.end());
 		}
 	}	
 
 	// prepare grid    
-	levelset.setConst( -cutoff );
+	levelset.setConst(-cutoff);
 	
 	// 1. count sources per cell
 	// NT_DEBUG todo, use IndexInt
 	Grid<int> srcPerCell(levelset.getParent());
-	for (size_t i=0; i<center.size(); i++) {
+	for (size_t i=0; i<center.size(); i++)
+    {
 		int idx = _cIndex(center[i], gridRes);
 		if (idx >= 0)
 			srcPerCell[idx]++;
@@ -776,7 +924,8 @@ void meshSDF(Mesh& mesh, LevelsetGrid& levelset, Real sigma, Real cutoff)
 	// 2. create start index lookup
 	Grid<int> srcCellStart(levelset.getParent());
 	int cnt=0;
-	FOR_IJK(srcCellStart) {
+	FOR_IJK(srcCellStart)
+    {
 		int idx = srcCellStart.index(i,j,k);
 		srcCellStart[idx] = cnt;
 		cnt += srcPerCell[idx];
@@ -787,7 +936,8 @@ void meshSDF(Mesh& mesh, LevelsetGrid& levelset, Real sigma, Real cutoff)
 	CVec3Array reorderNormal(center.size());
 	{
 		Grid<int> curSrcCell(levelset.getParent());
-		for (int i=0; i<(int)center.size(); i++) {
+		for (int i=0; i<(int)center.size(); i++)
+        {
 			int idx = _cIndex(center[i], gridRes);
 			if (idx < 0) continue;
 			int idx2 = srcCellStart[idx] + curSrcCell[idx];
@@ -800,21 +950,24 @@ void meshSDF(Mesh& mesh, LevelsetGrid& levelset, Real sigma, Real cutoff)
 	// construct parameters
 	Real safeRadius = cutoff + sqrt(3.0)*0.5;
 	Real safeRadius2 = safeRadius*safeRadius;
-	Real cutoff2 = cutoff*cutoff;
-	Real isigma2 = 1.0/(sigma*sigma);
-	int intRadius = (int)(cutoff+0.5);
+	Real cutoff2 = cutoff * cutoff;
+	Real isigma2 = 1.0/(sigma * sigma);
+	int intRadius = (int)(cutoff + 0.5);
 	
-	SDFKernel( srcCellStart, srcPerCell,
+	SDFKernel(srcCellStart, srcPerCell,
 			  reorderPos.data(), reorderNormal.data(), 
 			  levelset, gridRes, intRadius, safeRadius2, cutoff2, isigma2);
 	
 	// floodfill outside
 	std::stack<Vec3i> outside;
-	FOR_IJK(levelset) {
+	FOR_IJK(levelset)
+    {
 		if (levelset(i,j,k) >= cutoff-1.0f) 
 			outside.push(Vec3i(i,j,k));
 	}
-	while(!outside.empty()) {
+
+	while(!outside.empty())
+    {
 		Vec3i c = outside.top();
 		outside.pop();
 		levelset(c) = cutoff;
@@ -826,7 +979,5 @@ void meshSDF(Mesh& mesh, LevelsetGrid& levelset, Real sigma, Real cutoff)
 		if (c.z < levelset.getSizeZ()-1 && levelset(c.x, c.y, c.z+1) < 0) outside.push(Vec3i(c.x,c.y,c.z+1));
 	};
 }
-	
-
 
 } //namespace

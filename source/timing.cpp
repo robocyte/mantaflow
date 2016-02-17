@@ -15,29 +15,41 @@
 #include <fstream>
 
 using namespace std;
-namespace Manta {
 
-TimingData::TimingData() : updated(false), num(0) {
+namespace Manta
+{
+
+TimingData::TimingData()
+    : updated(false)
+    , num(0)
+{
 }
 
-void TimingData::start(FluidSolver* parent, const string& name) {
+void TimingData::start(FluidSolver* parent, const string& name)
+{
 	mLastPlugin = name;
 	mPluginTimer.get();
 }
 
-void TimingData::stop(FluidSolver* parent, const string& name) {
-	if (mLastPlugin == name && name != "FluidSolver::step") {
+void TimingData::stop(FluidSolver* parent, const string& name)
+{
+	if (mLastPlugin == name && name != "FluidSolver::step")
+    {
 		updated = true;
 		const string parentName = parent ? parent->getName() : "";
 		MuTime diff = mPluginTimer.update();
 		vector<TimingSet>& cur = mData[name];
-		for (vector<TimingSet>::iterator it = cur.begin(); it != cur.end(); it++) {
-			if (it->solver == parentName) {
+
+		for (auto it = cur.begin(); it != cur.end(); it++)
+        {
+			if (it->solver == parentName)
+            {
 				it->cur += diff;
 				it->updated = true;
 				return;
 			}
 		}
+
 		TimingSet s;
 		s.solver = parentName;
 		s.cur = diff;
@@ -46,49 +58,60 @@ void TimingData::stop(FluidSolver* parent, const string& name) {
 	}
 }
 
-void TimingData::step() {
-	if (updated)
-		num++;
-	std::map<std::string, std::vector<TimingSet> >::iterator it;
-	for (it = mData.begin(); it != mData.end(); it++) {
-		for (vector<TimingSet>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++) {
-			if (it2->updated) {
+void TimingData::step()
+{
+	if (updated) num++;
+	for (auto it = mData.begin(); it != mData.end(); it++)
+    {
+		for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++)
+        {
+			if (it2->updated)
+            {
 				it2->total += it2->cur;
 				it2->num++;
 			}
+
 			it2->cur.clear();
 			it2->updated = false;
 		}
 	}
+
 	updated = false;
 }
  
-void TimingData::print() {
+void TimingData::print()
+{
 	MuTime total;
 	total.clear();
-	std::map<std::string, std::vector<TimingSet> >::iterator it;
-	for (it = mData.begin(); it != mData.end(); it++)
-		for (vector<TimingSet>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++)
+
+    for (auto it = mData.begin(); it != mData.end(); it++)
+		for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++)
 			total += it2->cur;
 
 	printf("\n-- STEP %3d ----------------------------\n", num);
-	for (it = mData.begin(); it != mData.end(); it++) {
-		for (vector<TimingSet>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++) {
+
+	for (auto it = mData.begin(); it != mData.end(); it++)
+    {
+		for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++)
+        {
 			if (!it2->updated) continue;
+
 			string name = it->first;
-			if (it->second.size() > 1 && !it2->solver.empty())
-				name += "[" + it2->solver + "]";
+			if (it->second.size() > 1 && !it2->solver.empty()) name += "[" + it2->solver + "]";
+
 			printf("[%4.1f%%] %s (%s)\n", 100.0*((Real)it2->cur.time / (Real)total.time),
 										  name.c_str(), it2->cur.toString().c_str());
 		}
 	}
+
 	step();
 		
 	printf("----------------------------------------\n");
 	printf("Total : %s\n\n", total.toString().c_str());
 }
 
-void TimingData::saveMean(const string& filename) {
+void TimingData::saveMean(const string& filename)
+{
 	ofstream ofs(filename.c_str());
 	step();
 	if (!ofs.good())
@@ -98,7 +121,9 @@ void TimingData::saveMean(const string& filename) {
 	total.clear();
 	std::map<std::string, std::vector<TimingSet> >::iterator it;
 	for (it = mData.begin(); it != mData.end(); it++)
-		for (vector<TimingSet>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++) {
+    {
+		for (vector<TimingSet>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++)
+        {
 			total += it2->cur;
 			string name = it->first;
 			if (it->second.size() > 1)
@@ -106,10 +131,10 @@ void TimingData::saveMean(const string& filename) {
 			
 			ofs << name << " " << (it2->total / it2->num) << endl;
 		}
-	 
+    }
+
 	ofs << endl << "Total : " << total << " (mean " << total/num << ")" << endl;
 	ofs.close();
 }
  
-}
-
+} // namespace

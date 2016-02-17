@@ -16,13 +16,17 @@
 #include "mesh.h"
 
 using namespace std;
-namespace Manta {
+
+namespace Manta
+{
 
 // vortex particle effect: (cyl coord around wp)
 // u = -|wp|*rho*exp( (-rho^2-z^2)/(2sigma^2) ) e_phi
-inline Vec3 VortexKernel(const Vec3& p, const vector<VortexParticleData>& vp, Real scale) {
+inline Vec3 VortexKernel(const Vec3& p, const vector<VortexParticleData>& vp, Real scale)
+{
 	Vec3 u(_0);
-	for (size_t i=0; i<vp.size(); i++) {
+	for (size_t i=0; i<vp.size(); i++)
+    {
 		if (vp[i].flag & ParticleBase::PDELETE) continue;
 		
 		// cutoff radius
@@ -42,47 +46,128 @@ inline Vec3 VortexKernel(const Vec3& p, const vector<VortexParticleData>& vp, Re
 		const Real rho2 = rlen2 - z*z;
 	
 		Real vortex = 0;
-		if (rho2 > 1e-10) {
+		if (rho2 > 1e-10)
+        {
 			// evaluate Kernel      
 			vortex = strength * sqrt(rho2) * exp (rlen2 * -0.5/sigma2);  
 		}
+
 		u += vortex * ePhi;
 	}
 	return u;
 }
 
-KERNEL(pts) returns(vector<Vec3> u(size))
-vector<Vec3> KnVpAdvectMesh(vector<Node>& nodes, const vector<VortexParticleData>& vp, Real scale) {
-	if (nodes[idx].flags & Mesh::NfFixed)
-		u[idx] = _0;
-	else
-		u[idx] = VortexKernel(nodes[idx].pos, vp, scale);
-}
+struct KnVpAdvectMesh : public KernelBase
+{
+    KnVpAdvectMesh(vector<Node>& nodes, const vector<VortexParticleData>& vp, Real scale)
+        : KernelBase(nodes.size())
+        , nodes(nodes)
+        , vp(vp)
+        , scale(scale)
+        , u((size))
+    {
+        run();
+    }
+    
+    inline void op(int idx, vector<Node>& nodes, const vector<VortexParticleData>& vp, Real scale ,vector<Vec3> & u)
+    {
+        if (nodes[idx].flags & Mesh::NfFixed)
+		    u[idx] = _0;
+	    else
+		    u[idx] = VortexKernel(nodes[idx].pos, vp, scale);
+    }
+    
+    inline operator vector<Vec3> () { return u; }
+    inline vector<Vec3> & getRet() { return u; }
+    inline vector<Node>& getArg0() { return nodes; }
+    typedef vector<Node> type0;
+    inline const vector<VortexParticleData>& getArg1() { return vp; }
+    typedef vector<VortexParticleData> type1;
+    inline Real& getArg2() { return scale; }
+    typedef Real type2;
+    
+    void run()
+    {
+        const int _sz = size;
+#pragma omp parallel
+        {
+            this->threadId = omp_get_thread_num();
+            this->threadNum = omp_get_num_threads();
+#pragma omp for
+            for (int i=0; i < _sz; i++)
+                op(i,nodes,vp,scale,u);
+        }
+    }
+    
+    vector<Node>& nodes;
+    const vector<VortexParticleData>& vp;
+    Real scale;
+    vector<Vec3> u;
+};
 
-KERNEL(pts) returns(vector<Vec3> u(size))
-vector<Vec3> KnVpAdvectSelf(vector<VortexParticleData>& vp, Real scale) {
-	if (vp[idx].flag & ParticleBase::PDELETE) 
-		u[idx] = _0;
-	else
-		u[idx] = VortexKernel(vp[idx].pos, vp, scale);
-}
-	
-VortexParticleSystem::VortexParticleSystem(FluidSolver* parent) :
-	ParticleSystem<VortexParticleData>(parent)
+struct KnVpAdvectSelf : public KernelBase
+{
+    KnVpAdvectSelf(vector<VortexParticleData>& vp, Real scale)
+        : KernelBase(vp.size())
+        , vp(vp)
+        , scale(scale)
+        , u((size))
+    {
+        run();
+    }
+    
+    inline void op(int idx, vector<VortexParticleData>& vp, Real scale, vector<Vec3> & u)
+    {
+	    if (vp[idx].flag & ParticleBase::PDELETE) 
+		    u[idx] = _0;
+	    else
+		    u[idx] = VortexKernel(vp[idx].pos, vp, scale);
+    }
+    
+    inline operator vector<Vec3> () { return u; }
+    inline vector<Vec3> & getRet() { return u; }
+    inline vector<VortexParticleData>& getArg0() { return vp; }
+    typedef vector<VortexParticleData> type0;
+    inline Real& getArg1() { return scale; }
+    typedef Real type1;
+    
+    void run()
+    {
+        const int _sz = size;
+#pragma omp parallel
+        {
+            this->threadId = omp_get_thread_num();
+            this->threadNum = omp_get_num_threads();
+#pragma omp for
+            for (int i=0; i < _sz; i++)
+                op(i,vp,scale,u);
+        }
+    }
+    
+    vector<VortexParticleData>& vp;
+    Real scale;
+    vector<Vec3> u;
+};
+
+VortexParticleSystem::VortexParticleSystem(FluidSolver* parent)
+    : ParticleSystem<VortexParticleData>(parent)
 { 
 }
 
-void VortexParticleSystem::advectSelf(Real scale, int integrationMode) {
+void VortexParticleSystem::advectSelf(Real scale, int integrationMode)
+{
 	KnVpAdvectSelf kernel(mData, scale* getParent()->getDt());
 	integratePointSet( kernel, integrationMode);    
 }
 
-void VortexParticleSystem::applyToMesh(Mesh& mesh, Real scale, int integrationMode) {
+void VortexParticleSystem::applyToMesh(Mesh& mesh, Real scale, int integrationMode)
+{
 	KnVpAdvectMesh kernel(mesh.getNodeData(), mData, scale* getParent()->getDt());
-	integratePointSet( kernel, integrationMode);    
+	integratePointSet(kernel, integrationMode);    
 }
 
-ParticleBase* VortexParticleSystem::clone() {
+ParticleBase* VortexParticleSystem::clone()
+{
 	VortexParticleSystem* nm = new VortexParticleSystem(getParent());
 	compress();
 	
@@ -90,7 +175,5 @@ ParticleBase* VortexParticleSystem::clone() {
 	nm->setName(getName());
 	return nm;
 }
-
-	
 
 } // namespace

@@ -18,7 +18,8 @@
 
 using namespace std;
 
-namespace Manta {
+namespace Manta
+{
 
 // k-epsilon model constants
 const Real keCmu = 0.09;
@@ -35,8 +36,8 @@ const Real keNuMin = 1e-3;
 const Real keNuMax = 5.0;
 
 //! clamp k and epsilon to limits    
-KERNEL(idx) 
-void KnTurbulenceClamp(Grid<Real>& kgrid, Grid<Real>& egrid, Real minK, Real maxK, Real minNu, Real maxNu) {
+
+ struct KnTurbulenceClamp : public KernelBase { KnTurbulenceClamp(Grid<Real>& kgrid, Grid<Real>& egrid, Real minK, Real maxK, Real minNu, Real maxNu) :  KernelBase(&kgrid,0) ,kgrid(kgrid),egrid(egrid),minK(minK),maxK(maxK),minNu(minNu),maxNu(maxNu)   { run(); }  inline void op(int idx, Grid<Real>& kgrid, Grid<Real>& egrid, Real minK, Real maxK, Real minNu, Real maxNu )  {
 	Real eps = egrid[idx];
 	Real ke = clamp(kgrid[idx],minK,maxK);
 	Real nu = keCmu*square(ke)/eps;
@@ -47,13 +48,14 @@ void KnTurbulenceClamp(Grid<Real>& kgrid, Grid<Real>& egrid, Real minK, Real max
 
 	kgrid[idx] = ke;
 	egrid[idx] = eps;
-}
+}   inline Grid<Real>& getArg0() { return kgrid; } typedef Grid<Real> type0;inline Grid<Real>& getArg1() { return egrid; } typedef Grid<Real> type1;inline Real& getArg2() { return minK; } typedef Real type2;inline Real& getArg3() { return maxK; } typedef Real type3;inline Real& getArg4() { return minNu; } typedef Real type4;inline Real& getArg5() { return maxNu; } typedef Real type5; void run() {  const int _sz = size; 
+#pragma omp parallel 
+ { this->threadId = omp_get_thread_num(); this->threadNum = omp_get_num_threads();  
+#pragma omp for 
+  for (int i=0; i < _sz; i++) op(i,kgrid,egrid,minK,maxK,minNu,maxNu);  }  } Grid<Real>& kgrid; Grid<Real>& egrid; Real minK; Real maxK; Real minNu; Real maxNu;   };
 
 //! Compute k-epsilon production term P = 2*nu_T*sum_ij(Sij^2) and the turbulent viscosity nu_T=C_mu*k^2/eps
-KERNEL(bnd=1) 
-void KnComputeProduction(const MACGrid& vel, const Grid<Vec3>& velCenter, const Grid<Real>& ke, const Grid<Real>& eps, 
-							   Grid<Real>& prod, Grid<Real>& nuT, Grid<Real>* strain, Real pscale = 1.0f) 
-{
+ struct KnComputeProduction : public KernelBase { KnComputeProduction(const MACGrid& vel, const Grid<Vec3>& velCenter, const Grid<Real>& ke, const Grid<Real>& eps, Grid<Real>& prod, Grid<Real>& nuT, Grid<Real>* strain, Real pscale = 1.0f) :  KernelBase(&vel,1) ,vel(vel),velCenter(velCenter),ke(ke),eps(eps),prod(prod),nuT(nuT),strain(strain),pscale(pscale)   { run(); }  inline void op(int i, int j, int k, const MACGrid& vel, const Grid<Vec3>& velCenter, const Grid<Real>& ke, const Grid<Real>& eps, Grid<Real>& prod, Grid<Real>& nuT, Grid<Real>* strain, Real pscale = 1.0f )  {
 	Real curEps = eps(i,j,k);
 	if (curEps > 0) {
 		// turbulent viscosity: nu_T = C_mu * k^2/eps
@@ -80,11 +82,19 @@ void KnComputeProduction(const MACGrid& vel, const Grid<Vec3>& velCenter, const 
 		nuT(i,j,k) = 0;
 		if (strain) (*strain)(i,j,k) = 0;
 	}
-}
+}   inline const MACGrid& getArg0() { return vel; } typedef MACGrid type0;inline const Grid<Vec3>& getArg1() { return velCenter; } typedef Grid<Vec3> type1;inline const Grid<Real>& getArg2() { return ke; } typedef Grid<Real> type2;inline const Grid<Real>& getArg3() { return eps; } typedef Grid<Real> type3;inline Grid<Real>& getArg4() { return prod; } typedef Grid<Real> type4;inline Grid<Real>& getArg5() { return nuT; } typedef Grid<Real> type5;inline Grid<Real>* getArg6() { return strain; } typedef Grid<Real> type6;inline Real& getArg7() { return pscale; } typedef Real type7; void run() {  const int _maxX = maxX; const int _maxY = maxY; if (maxZ > 1) { 
+#pragma omp parallel 
+ { this->threadId = omp_get_thread_num(); this->threadNum = omp_get_num_threads();  
+#pragma omp for 
+  for (int k=minZ; k < maxZ; k++) for (int j=1; j < _maxY; j++) for (int i=1; i < _maxX; i++) op(i,j,k,vel,velCenter,ke,eps,prod,nuT,strain,pscale);  } } else { const int k=0; 
+#pragma omp parallel 
+ { this->threadId = omp_get_thread_num(); this->threadNum = omp_get_num_threads();  
+#pragma omp for 
+  for (int j=1; j < _maxY; j++) for (int i=1; i < _maxX; i++) op(i,j,k,vel,velCenter,ke,eps,prod,nuT,strain,pscale);  } }  } const MACGrid& vel; const Grid<Vec3>& velCenter; const Grid<Real>& ke; const Grid<Real>& eps; Grid<Real>& prod; Grid<Real>& nuT; Grid<Real>* strain; Real pscale;   };
 	
 //! Compute k-epsilon production term P = 2*nu_T*sum_ij(Sij^2) and the turbulent viscosity nu_T=C_mu*k^2/eps
-PYTHON() void KEpsilonComputeProduction(MACGrid& vel, Grid<Real>& k, Grid<Real>& eps, Grid<Real>& prod, Grid<Real>& nuT, Grid<Real>* strain=0, Real pscale = 1.0f) 
-{
+
+void KEpsilonComputeProduction(MACGrid& vel, Grid<Real>& k, Grid<Real>& eps, Grid<Real>& prod, Grid<Real>& nuT, Grid<Real>* strain=0, Real pscale = 1.0f) {
 	// get centered velocity grid
 	Grid<Vec3> vcenter(k.getParent());
 	GetCentered(vcenter, vel);
@@ -99,8 +109,7 @@ PYTHON() void KEpsilonComputeProduction(MACGrid& vel, Grid<Real>& k, Grid<Real>&
 }
 
 //! Integrate source terms of k-epsilon equation
-KERNEL(idx) 
-void KnAddTurbulenceSource(Grid<Real>& kgrid, Grid<Real>& egrid, const Grid<Real>& pgrid, Real dt) {
+ struct KnAddTurbulenceSource : public KernelBase { KnAddTurbulenceSource(Grid<Real>& kgrid, Grid<Real>& egrid, const Grid<Real>& pgrid, Real dt) :  KernelBase(&kgrid,0) ,kgrid(kgrid),egrid(egrid),pgrid(pgrid),dt(dt)   { run(); }  inline void op(int idx, Grid<Real>& kgrid, Grid<Real>& egrid, const Grid<Real>& pgrid, Real dt )  {
 	Real eps = egrid[idx], prod = pgrid[idx], ke = kgrid[idx];
 	if (ke <= 0) ke = 1e-3; // pre-clamp to avoid nan
 	
@@ -110,11 +119,14 @@ void KnAddTurbulenceSource(Grid<Real>& kgrid, Grid<Real>& egrid, const Grid<Real
 
 	kgrid[idx] = newK;
 	egrid[idx] = newEps;
-}
-
+}   inline Grid<Real>& getArg0() { return kgrid; } typedef Grid<Real> type0;inline Grid<Real>& getArg1() { return egrid; } typedef Grid<Real> type1;inline const Grid<Real>& getArg2() { return pgrid; } typedef Grid<Real> type2;inline Real& getArg3() { return dt; } typedef Real type3; void run() {  const int _sz = size; 
+#pragma omp parallel 
+ { this->threadId = omp_get_thread_num(); this->threadNum = omp_get_num_threads();  
+#pragma omp for 
+  for (int i=0; i < _sz; i++) op(i,kgrid,egrid,pgrid,dt);  }  } Grid<Real>& kgrid; Grid<Real>& egrid; const Grid<Real>& pgrid; Real dt;   };
 
 //! Integrate source terms of k-epsilon equation
-PYTHON() void KEpsilonSources(Grid<Real>& k, Grid<Real>& eps, Grid<Real>& prod) {
+void KEpsilonSources(Grid<Real>& k, Grid<Real>& eps, Grid<Real>& prod) {
 	Real dt = k.getParent()->getDt();
 		
 	KnAddTurbulenceSource(k, eps, prod, dt);
@@ -126,7 +138,7 @@ PYTHON() void KEpsilonSources(Grid<Real>& k, Grid<Real>& eps, Grid<Real>& prod) 
 }
 
 //! Initialize the domain or boundary conditions
-PYTHON() void KEpsilonBcs(FlagGrid& flags, Grid<Real>& k, Grid<Real>& eps, Real intensity, Real nu, bool fillArea) {
+void KEpsilonBcs(FlagGrid& flags, Grid<Real>& k, Grid<Real>& eps, Real intensity, Real nu, bool fillArea) {
 	// compute limits
 	const Real vk = 1.5*square(keU0)*square(intensity);
 	const Real ve = keCmu*square(vk) / nu;
@@ -154,7 +166,7 @@ void ApplyGradDiff(const Grid<Real>& grid, Grid<Real>& res, const Grid<Real>& nu
 }
 
 //! Compute k-epsilon turbulent viscosity
-PYTHON() void KEpsilonGradientDiffusion(Grid<Real>& k, Grid<Real>& eps, Grid<Real>& nuT, Real sigmaU=4.0, MACGrid* vel=0) {
+void KEpsilonGradientDiffusion(Grid<Real>& k, Grid<Real>& eps, Grid<Real>& nuT, Real sigmaU=4.0, MACGrid* vel=0) {
 	Real dt = k.getParent()->getDt();
 	Grid<Real> res(k.getParent());
 	
@@ -178,6 +190,5 @@ PYTHON() void KEpsilonGradientDiffusion(Grid<Real>& k, Grid<Real>& eps, Grid<Rea
 	}
 }
 
-
-
 } // namespace
+

@@ -15,22 +15,27 @@
 #include "grid.h"
 #include "particle.h"
 
-namespace Manta {
+namespace Manta
+{
 
-KernelBase::KernelBase(const GridBase* base, int bnd) :    
-	maxX (base->getSizeX()-bnd),
-	maxY (base->getSizeY()-bnd),
-	maxZ (base->is3D() ? (base->getSizeZ()-bnd) : 1),
-	minZ (base->is3D() ? bnd : 0),
-	X (base->getStrideX()),
-	Y (base->getStrideY()),
-	Z (base->getStrideZ()),
-	size (base->getSizeX() * base->getSizeY() * base->getSizeZ()),
-	threadId(0),threadNum(1) {}
+KernelBase::KernelBase(const GridBase* base, int bnd)
+    : maxX (base->getSizeX()-bnd)
+    , maxY (base->getSizeY()-bnd)
+    , maxZ (base->is3D() ? (base->getSizeZ()-bnd) : 1)
+    , minZ (base->is3D() ? bnd : 0)
+    , X (base->getStrideX())
+    , Y (base->getStrideY())
+    , Z (base->getStrideZ())
+    , size (base->getSizeX() * base->getSizeY() * base->getSizeZ())
+    , threadId(0),threadNum(1)
+{
+}
 
-KernelBase::KernelBase(int sz) :
-	size(sz),
-	threadId(0),threadNum(1)	{}
-	
+KernelBase::KernelBase(int sz)
+    : size(sz)
+    , threadId(0)
+    , threadNum(1)
+{
+}
 	
 } // namespace

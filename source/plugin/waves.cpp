@@ -19,7 +19,8 @@
 
 using namespace std;
 
-namespace Manta {
+namespace Manta
+{
 
 
 /******************************************************************************
@@ -29,36 +30,51 @@ namespace Manta {
  ******************************************************************************/
 
 
-KERNEL(bnd=1) 
-void knCalcSecDeriv2d(const Grid<Real>& v, Grid<Real>& ret) {
+ struct knCalcSecDeriv2d : public KernelBase { knCalcSecDeriv2d(const Grid<Real>& v, Grid<Real>& ret) :  KernelBase(&v,1) ,v(v),ret(ret)   { run(); }  inline void op(int i, int j, int k, const Grid<Real>& v, Grid<Real>& ret )  {
 
     ret(i,j,k) = 
 		( -4. * v(i,j,k) + v(i-1,j,k) + v(i+1,j,k) + v(i,j-1,k) + v(i,j+1,k) );
 
-};
+}   inline const Grid<Real>& getArg0() { return v; } typedef Grid<Real> type0;inline Grid<Real>& getArg1() { return ret; } typedef Grid<Real> type1; void run() {  const int _maxX = maxX; const int _maxY = maxY; if (maxZ > 1) { 
+#pragma omp parallel 
+ { this->threadId = omp_get_thread_num(); this->threadNum = omp_get_num_threads();  
+#pragma omp for 
+  for (int k=minZ; k < maxZ; k++) for (int j=1; j < _maxY; j++) for (int i=1; i < _maxX; i++) op(i,j,k,v,ret);  } } else { const int k=0; 
+#pragma omp parallel 
+ { this->threadId = omp_get_thread_num(); this->threadNum = omp_get_num_threads();  
+#pragma omp for 
+  for (int j=1; j < _maxY; j++) for (int i=1; i < _maxX; i++) op(i,j,k,v,ret);  } }  } const Grid<Real>& v; Grid<Real>& ret;   };
 
-
-PYTHON() void calcSecDeriv2d(const Grid<Real>& v, Grid<Real>& curv) {
+void calcSecDeriv2d(const Grid<Real>& v, Grid<Real>& curv) {
 	knCalcSecDeriv2d(v,curv);
 }
 
-
 // mass conservation 
+ struct knTotalSum : public KernelBase { knTotalSum(Grid<Real>& h) :  KernelBase(&h,1) ,h(h) ,sum(0)  { run(); }  inline void op(int i, int j, int k, Grid<Real>& h ,double& sum)  { sum += h(i,j,k); }   inline Grid<Real>& getArg0() { return h; } typedef Grid<Real> type0; void run() {  const int _maxX = maxX; const int _maxY = maxY; if (maxZ > 1) { 
+#pragma omp parallel 
+ { this->threadId = omp_get_thread_num(); this->threadNum = omp_get_num_threads();  double sum = 0; 
+#pragma omp for nowait 
+  for (int k=minZ; k < maxZ; k++) for (int j=1; j < _maxY; j++) for (int i=1; i < _maxX; i++) op(i,j,k,h,sum); 
+#pragma omp critical
+{this->sum += sum; } } } else { const int k=0; 
+#pragma omp parallel 
+ { this->threadId = omp_get_thread_num(); this->threadNum = omp_get_num_threads();  double sum = 0; 
+#pragma omp for nowait 
+  for (int j=1; j < _maxY; j++) for (int i=1; i < _maxX; i++) op(i,j,k,h,sum); 
+#pragma omp critical
+{this->sum += sum; } } }  } Grid<Real>& h;  double sum;  };
 
-KERNEL(bnd=1, reduce=+) returns(double sum=0)
-void knTotalSum(Grid<Real>& h) { sum += h(i,j,k); }
 
-PYTHON() Real totalSum(Grid<Real>& height) {
+Real totalSum(Grid<Real>& height) {
 	knTotalSum ts(height);
 	return ts.sum;
 }
 
-PYTHON() void normalizeSumTo(Grid<Real>& height, Real target) {
+void normalizeSumTo(Grid<Real>& height, Real target) {
 	knTotalSum ts(height);
 	Real factor = target / ts.sum;
 	height.multConst(factor);
 }
-
 
 /******************************************************************************
  *
@@ -66,30 +82,24 @@ PYTHON() void normalizeSumTo(Grid<Real>& height, Real target) {
  *
  ******************************************************************************/
 
-
-
 //! Kernel: Construct the right-hand side of the poisson equation
-KERNEL(bnd=1)
-void MakeRhsWE(FlagGrid& flags, Grid<Real>& rhs, Grid<Real>& ut, Grid<Real>& utm1,
-			Real s, bool crankNic=false) 
-{
+ struct MakeRhsWE : public KernelBase { MakeRhsWE(FlagGrid& flags, Grid<Real>& rhs, Grid<Real>& ut, Grid<Real>& utm1, Real s, bool crankNic=false) :  KernelBase(&flags,1) ,flags(flags),rhs(rhs),ut(ut),utm1(utm1),s(s),crankNic(crankNic)   { run(); }  inline void op(int i, int j, int k, FlagGrid& flags, Grid<Real>& rhs, Grid<Real>& ut, Grid<Real>& utm1, Real s, bool crankNic=false )  {
 	rhs(i,j,k) = ( 2.*ut(i,j,k) - utm1(i,j,k) );
 	if(crankNic) {
 		rhs(i,j,k) += s * ( -4.*ut(i,j,k) + 1.*ut(i-1,j,k) + 1.*ut(i+1,j,k) + 1.*ut(i,j-1,k) + 1.*ut(i,j+1,k) );
 	} 
-}
-
-
-
-
+}   inline FlagGrid& getArg0() { return flags; } typedef FlagGrid type0;inline Grid<Real>& getArg1() { return rhs; } typedef Grid<Real> type1;inline Grid<Real>& getArg2() { return ut; } typedef Grid<Real> type2;inline Grid<Real>& getArg3() { return utm1; } typedef Grid<Real> type3;inline Real& getArg4() { return s; } typedef Real type4;inline bool& getArg5() { return crankNic; } typedef bool type5; void run() {  const int _maxX = maxX; const int _maxY = maxY; if (maxZ > 1) { 
+#pragma omp parallel 
+ { this->threadId = omp_get_thread_num(); this->threadNum = omp_get_num_threads();  
+#pragma omp for 
+  for (int k=minZ; k < maxZ; k++) for (int j=1; j < _maxY; j++) for (int i=1; i < _maxX; i++) op(i,j,k,flags,rhs,ut,utm1,s,crankNic);  } } else { const int k=0; 
+#pragma omp parallel 
+ { this->threadId = omp_get_thread_num(); this->threadNum = omp_get_num_threads();  
+#pragma omp for 
+  for (int j=1; j < _maxY; j++) for (int i=1; i < _maxX; i++) op(i,j,k,flags,rhs,ut,utm1,s,crankNic);  } }  } FlagGrid& flags; Grid<Real>& rhs; Grid<Real>& ut; Grid<Real>& utm1; Real s; bool crankNic;   };
 
 //! do a CG solve (note, out grid only there for debugging... could be removed)
-PYTHON() void cgSolveWE(FlagGrid& flags, Grid<Real>& ut, Grid<Real>& utm1, Grid<Real>& out,
-						bool crankNic     = false,
-						Real cSqr         = 0.25,
-						Real cgMaxIterFac = 1.5,
-						Real cgAccuracy   = 1e-5 )
-{
+void cgSolveWE(FlagGrid& flags, Grid<Real>& ut, Grid<Real>& utm1, Grid<Real>& out, bool crankNic = false, Real cSqr = 0.25, Real cgMaxIterFac = 1.5, Real cgAccuracy = 1e-5 ) {
 	// reserve temp grids
 	FluidSolver* parent = flags.getParent();
 	Grid<Real> rhs(parent);
@@ -153,8 +163,4 @@ PYTHON() void cgSolveWE(FlagGrid& flags, Grid<Real>& ut, Grid<Real>& utm1, Grid<
 	delete gcg;
 }
 
-
-
-
 } //namespace
-

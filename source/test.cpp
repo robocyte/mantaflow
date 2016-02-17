@@ -18,23 +18,93 @@
 
 using namespace std;
 
-namespace Manta {
-
-KERNEL(idx, reduce=+) returns (double sum=0)
-double reductionTest(const Grid<Real>& v)
+namespace Manta
 {
-	sum += v[idx];
-}
 
-KERNEL(idx, reduce=min) returns (double sum=0)
-double minReduction(const Grid<Real>& v)
+struct reductionTest : public KernelBase
 {
-	if (sum < v[idx])
-		sum = v[idx];
-}
+    reductionTest(const Grid<Real>& v) : KernelBase(&v,0) ,v(v) ,sum(0)
+    {
+        run();
+    }
+    
+    inline void op(int idx, const Grid<Real>& v ,double& sum)
+    {
+	    sum += v[idx];
+    }
+    
+    inline operator double () { return sum; }
+    inline double  & getRet() { return sum; }
+    inline const Grid<Real>& getArg0() { return v; }
+    typedef Grid<Real> type0;
+    
+    void run()
+    {
+        const int _sz = size; 
+#pragma omp parallel
+        {
+            this->threadId = omp_get_thread_num();
+            this->threadNum = omp_get_num_threads();
+            double sum = 0;
+#pragma omp for nowait
+            for (int i=0; i < _sz; i++)
+                op(i,v,sum);
+#pragma omp critical
+            {
+                this->sum += sum;
+            }
+        }
+    }
+    
+    const Grid<Real>& v;
+    double sum;
+};
 
+struct minReduction : public KernelBase
+{
+    minReduction(const Grid<Real>& v) 
+        : KernelBase(&v,0)
+        , v(v)
+        , sum(0)
+    {
+        run();
+    }
+    
+    inline void op(int idx, const Grid<Real>& v ,double& sum)
+    {
+        if (sum < v[idx])
+            sum = v[idx];   
+    }
 
-PYTHON() void getCurl(MACGrid& vel, Grid<Real>& vort, int comp) {
+    inline operator double () { return sum; }
+    inline double  & getRet() { return sum; }
+    inline const Grid<Real>& getArg0() { return v; }
+    typedef Grid<Real> type0;
+    
+    void run()
+    {
+        const int _sz = size;
+#pragma omp parallel
+        {
+            this->threadId = omp_get_thread_num();
+            this->threadNum = omp_get_num_threads();
+            double sum = 0;
+#pragma omp for nowait
+            for (int i=0; i < _sz; i++)
+                op(i,v,sum);
+#pragma omp critical
+            {
+                this->sum = min(sum, this->sum);
+            }
+        }
+    }
+    
+    const Grid<Real>& v;
+    double sum;
+};
+
+void getCurl(MACGrid& vel, Grid<Real>& vort, int comp)
+{
 	Grid<Vec3> velCenter(vel.getParent()), curl(vel.getParent());
 	
 	GetCentered(velCenter, vel);
@@ -42,40 +112,48 @@ PYTHON() void getCurl(MACGrid& vel, Grid<Real>& vort, int comp) {
 	GetComponent(curl, vort, comp);
 }
 
-PYTHON() void setinflow(FlagGrid& flags, MACGrid& vel, LevelsetGrid& phi, Real h) {
-	FOR_IJK(vel) {
-		if (i<=2) {
-			if (j < h*flags.getSizeY()) {
+void setinflow(FlagGrid& flags, MACGrid& vel, LevelsetGrid& phi, Real h)
+{
+	FOR_IJK(vel)
+    {
+		if (i<=2)
+        {
+			if (j < h*flags.getSizeY())
+            {
 				vel(i,j,k).x = 1;            
-				if (!flags.isObstacle(i,j,k)) { 
+				if (!flags.isObstacle(i,j,k))
+                { 
 					flags(i,j,k) = 1;        
 					phi(i,j,k) = -1;
 				}                
-			} else {
+			} else
+            {
 				vel(i,j,k).x = 0;                            
-				if (!flags.isObstacle(i,j,k)) { 
+				if (!flags.isObstacle(i,j,k))
+                { 
 					flags(i,j,k) = 4;
 					phi(i,j,k) = 1;
 				}
 			}
-		}
-		else if (i>=flags.getSizeX()-2) {
+		} else if (i>=flags.getSizeX()-2)
+        {
 			vel(i,j,k).x = 1;            
 		}
 	}
 }
 	
-PYTHON() void testDiscardNth (BasicParticleSystem& parts,  int skip=1) { 
+void testDiscardNth(BasicParticleSystem& parts, int skip=1)
+{ 
 	//knSetPdataConst<Real>(pd,value); 
-	for(int i=0; i<parts.size(); ++i) {
-		if(i%(skip+1) == skip) { // keep 
-		} else {
+	for (int i = 0; i < parts.size(); ++i)
+    {
+		if (i%(skip+1) == skip)
+        { // keep 
+		} else
+        {
 			parts.setPos(i, Vec3(-100000) );
 		}
 	}
 }
 
-
-
 } //namespace
-

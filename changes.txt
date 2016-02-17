@@ -1,0 +1,25 @@
+* removed python interface and code generation
+* changed directory organization
+* replaced include guards with #pragma once directive
+* all kernels are expanded to the OpenMP version for now
+* Python script files rewritten as console applications
+* functions moved to general.h/general.cpp:
+	- setDebugLevel
+	- buildInfoString
+	- printInfoString
+* created headers to expose plugin functionality:
+	- advection.h
+	- extforces.h
+	- flip.h
+	- initplugins.h
+	- pressure.h
+* functions exposed in fastmarch.h:
+	- extrapolateMACSimple
+	- extrapolateMACFromWeight
+	- extrapolateLsSimple
+	- extrapolateVec3Simple
+* class Shape:
+	- templated member applyToGrid
+* class ParticleDataImpl:
+	- additional constructor taking a particle system as an argument
+* added folders for blender test scenes and simulation data

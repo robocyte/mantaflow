@@ -19,12 +19,13 @@
 //
 /******************************************************************************/
 
-#include "edgecollapse.h"
+#include <map>
 #include <queue>
 
-using namespace std;
+#include "edgecollapse.h"
 
-namespace Manta {
+namespace Manta
+{
 
 // 8-point butterfly subdivision scheme (as described by Brochu&Bridson 2009)
 Vec3 ButterflySubdivision(Mesh& m, const Corner &ca, const Corner &cb)
@@ -44,36 +45,41 @@ Vec3 ButterflySubdivision(Mesh& m, const Corner &ca, const Corner &cb)
 // input the Corner that satisfies the following: 
 //      c.prev.node is the extraordinary vertex, 
 //      and c.next.node is the other vertex involved in the subdivision
-Vec3 OneSidedButterflySubdivision(Mesh& m, const int valence, const Corner &c) {
+Vec3 OneSidedButterflySubdivision(Mesh& m, const int valence, const Corner &c)
+{
 	Vec3 out;
 	Vec3 p0 = m.nodes(m.corners(c.prev).node).pos;
 	Vec3 p1 = m.nodes(m.corners(c.next).node).pos;
 	
-	if(valence==3) {
+	if(valence==3)
+    {
 		Vec3 p2 = m.nodes(c.node).pos;
 		Vec3 p3 = m.nodes(m.corners(m.corners(c.next).opposite).node).pos;
 		out = (5.0/12.0)*p1 - (1.0/12.0)*(p2+p3) + 0.75*p0;        
-	} 
-	else if(valence==4) {
+	} else if(valence==4)
+    {
 		Vec3 p2 = m.nodes(m.corners(m.corners(c.next).opposite).node).pos;
 		out = 0.375*p1 - 0.125*p2 + 0.75*p0;        
-	}
-	else {
+	} else
+    {
 		// rotate around extraordinary vertex,
 		// calculate subdivision weights,
 		// and interpolate vertex position
 		double rv = 1.0/(double)valence;
 		out = 0.0;
 		int current = c.prev;
-		for(int j=0; j<valence; j++) {
+		for(int j=0; j<valence; j++)
+        {
 			double s = (0.25 + cos(2*M_PI*j*rv) + 0.5*cos(4*M_PI*j*rv))*rv;
 			Vec3 p = m.nodes(m.corners(m.corners(current).prev).node).pos;
 
 			out += s*p;
 			current = m.corners(m.corners(m.corners(current).next).opposite).next;
 		}
+
 		out += 0.75* m.nodes(m.corners(c.prev).node).pos;        
 	}
+
 	return out;
 }
 
@@ -86,37 +92,38 @@ Vec3 ModifiedButterflySubdivision(Mesh& m, const Corner &ca, const Corner &cb, c
 	int start = ca.prev;
 	int current = start;
 	int valenceA = 0;
-	do {
+
+	do
+    {
 		valenceA++;
 		int op = m.corners(m.corners(current).next).opposite;
 		if (op < 0) return fallback;
 		current = m.corners(op).next;
-	} 
-	while(current != start);
+	} while(current != start);
+
 	start = ca.next;
 	current = start;
 	int valenceB = 0;
-	do {
+
+	do
+    {
 		valenceB++;
 		int op = m.corners(m.corners(current).next).opposite;
 		if (op < 0) return fallback;
 		current = m.corners(op).next;        
-	} 
-	while(current != start);
+	} while(current != start);
 
 	// if both vertices have valence 6, use butterfly subdivision
-	if(valenceA==6 && valenceB==6) {
+	if(valenceA==6 && valenceB==6)
+    {
 		return ButterflySubdivision(m, ca,cb);
-	}
-	else if(valenceA==6)    // use a one-sided scheme
+	} else if(valenceA==6)    // use a one-sided scheme
 	{
 		return OneSidedButterflySubdivision(m, valenceB,cb);
-	}
-	else if(valenceB==6)    // use a one-sided scheme
+	} else if(valenceB==6)    // use a one-sided scheme
 	{
 		return OneSidedButterflySubdivision(m, valenceA,ca);
-	}
-	else    // average the results from two one-sided schemes
+	} else    // average the results from two one-sided schemes
 	{   
 		return 0.5*(    OneSidedButterflySubdivision(m, valenceA,ca) 
 					+   OneSidedButterflySubdivision(m, valenceB,cb)   );
@@ -131,9 +138,10 @@ bool gAbort = false;
 // which==1 is the triangle edge from p1 to p2, 
 // and which==2 is the triangle edge from p2 to p0, 
 void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgevect, const Vec3 &endpoint,
-				  vector<int> &deletedNodes, std::map<int,bool> &taintedTris, int &numCollapses, bool doTubeCutting)
+				  std::vector<int> &deletedNodes, std::map<int,bool> &taintedTris, int &numCollapses, bool doTubeCutting)
 {
 	if (gAbort) return;
+
 	// I wanted to draw a pretty picture of an edge collapse,
 	// but I don't know how to make wacky angled lines in ASCII.
 	// Instead, I will show the before case and tell you what needs to be done.
@@ -180,13 +188,17 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 	ca_old[1] = m.corners(ca_old[0].next);
 	ca_old[2] = m.corners(ca_old[0].prev);
 	bool haveB = false;
-	if (ca_old[0].opposite>=0) {
+
+	if (ca_old[0].opposite>=0)
+    {
 		cb_old[0] = m.corners(ca_old[0].opposite);
 		cb_old[1] = m.corners(cb_old[0].next);
 		cb_old[2] = m.corners(cb_old[0].prev);
 		haveB = true;
 	}
-	if (!haveB) {
+
+	if (!haveB)
+    {
 		// for now, don't collapse
 		return;
 	}
@@ -194,21 +206,23 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 	int P0 = ca_old[2].node;
 	int P1 = ca_old[1].node;
 	
-	///////////////
 	// avoid creating nonmanifold edges
 	bool nonmanifold = false;
 	bool nonmanifold2 = false;
 	
-	set<int>& ring0 = m.get1Ring(P0).nodes;
-	set<int>& ring1 = m.get1Ring(P1).nodes;
+	std::set<int>& ring0 = m.get1Ring(P0).nodes;
+	std::set<int>& ring1 = m.get1Ring(P1).nodes;
 	
 	// check for intersections of the 1-rings of P0,P1
 	int cl=0, commonVert=-1;
-	for(set<int>::iterator it=ring1.begin(); it != ring1.end(); ++it)
-		if (ring0.find(*it) != ring0.end()) {
+	for(std::set<int>::iterator it = ring1.begin(); it != ring1.end(); ++it)
+    {
+		if (ring0.find(*it) != ring0.end())
+        {
 			cl++;
 			if (*it != ca_old[0].node && *it != cb_old[0].node) commonVert = *it;
 		}
+    }
 	
 	nonmanifold = cl>2;
 	nonmanifold2 = cl>3;
@@ -217,20 +231,16 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 	   ca_old[1].opposite>=0 && cb_old[1].opposite>=0 &&
 	   ca_old[2].opposite>=0 && cb_old[2].opposite>=0 ) // collapsing this edge would create a non-manifold edge
 	{
-		if(nonmanifold2) 
-			return;
+		if(nonmanifold2) return;
 		
 		bool topTet = false;
 		bool botTet = false;
-		// check if collapsing this edge will collapse a tet.
-		if(m.corners(ca_old[1].opposite).node == m.corners(ca_old[2].opposite).node)
-			botTet = true;
-		
-		if(m.corners(cb_old[1].opposite).node == m.corners(cb_old[2].opposite).node)   
-			topTet = true;
 
-		if(topTet^botTet) {
-		
+		// check if collapsing this edge will collapse a tet.
+		if(m.corners(ca_old[1].opposite).node == m.corners(ca_old[2].opposite).node) botTet = true;
+		if(m.corners(cb_old[1].opposite).node == m.corners(cb_old[2].opposite).node) topTet = true;
+		if(topTet^botTet)
+        {
 			// safe pyramid case.
 			// collapse the whole tet!
 			// First collapse the top of the pyramid,
@@ -295,17 +305,19 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 			
 			// check for intersections of the 1-rings of P0,P1
 			cl=0;
-			for(set<int>::iterator it=ring1.begin(); it != ring1.end(); ++it)
+			for(std::set<int>::iterator it = ring1.begin(); it != ring1.end(); ++it)
 				if (*it != ca_old[0].node && ring0.find(*it) != ring0.end())
 					cl++;
 				
-			if(cl>2) { // nonmanifold
+			if(cl>2)
+            { // nonmanifold
 				// this can happen if collapsing the first tet leads to another similar collapse that requires the collapse of a tet.
 				// for now, just move on and pick this up later.
 
 				// if the original component was very small, this first collapse could have led to a tiny piece of nonmanifold geometry.
 				// in this case, just delete everything that remains.
-				if(m.corners(ca_old[0].opposite).tri==cb_old[0].tri && m.corners(ca_old[1].opposite).tri==cb_old[0].tri && m.corners(ca_old[2].opposite).tri==cb_old[0].tri) {
+				if(m.corners(ca_old[0].opposite).tri==cb_old[0].tri && m.corners(ca_old[1].opposite).tri==cb_old[0].tri && m.corners(ca_old[2].opposite).tri==cb_old[0].tri)
+                {
 					taintedTris[ca_old[0].tri] = true;
 					taintedTris[cb_old[0].tri] = true;
 					m.removeTriFromLookup(ca_old[0].tri);
@@ -314,7 +326,8 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 					deletedNodes.push_back(ca_old[1].node);
 					deletedNodes.push_back(ca_old[2].node);
 				}
-				return;
+                
+                return;
 			}
 		} else if(topTet && botTet && ca_old[1].opposite>=0 && ca_old[2].opposite>=0 && cb_old[1].opposite>=0 && cb_old[2].opposite>=0)
 		{
@@ -414,8 +427,7 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 				// quit for now, and we'll catch the remaining short edges the next time this function is called.
 				return;
 			}
-		}
-		else if (doTubeCutting)
+		} else if (doTubeCutting)
 		{
 			// tube case
 			//cout<<"CollapseEdge:tube case" << endl;
@@ -426,7 +438,8 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 			int start = ca_old[0].next;
 			int end = cb_old[0].prev;
 			int current = start;
-			do {
+			do
+            {
 				// rotate around vertex P1 counter-clockwise
 				int op = m.corners(m.corners(current).next).opposite;
 				if (op < 0) throw Error("tube cutting failed, no opposite");
@@ -434,13 +447,13 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 				
 				if(m.corners(m.corners(current).prev).node==commonVert)
 					P1P2 = m.corners(current).next;
-			}
-			while(current != end);
+			} while(current != end);
 
 			start = ca_old[0].prev;
 			end = cb_old[0].next;
 			current = start;
-			do {
+			do
+            {
 				// rotate around vertex P0 clockwise
 				int op = m.corners(m.corners(current).prev).opposite;
 				if (op < 0) throw Error("tube cutting failed, no opposite");
@@ -450,8 +463,7 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 					P2P0 = m.corners(current).prev;
 			} while(current != end);
 
-			if (P1P2 < 0 || P2P0 < 0) 
-				throw Error("tube cutting failed, ill geometry");
+			if (P1P2 < 0 || P2P0 < 0) throw Error("tube cutting failed, ill geometry");
 			
 			P2P1 = m.corners(P1P2).opposite;
 			P0P2 = m.corners(P2P0).opposite;
@@ -461,7 +473,9 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 			int P0b = m.addNode(Node(m.nodes(P0).pos));
 			int P1b = m.addNode(Node(m.nodes(P1).pos));
 			int P2b = m.addNode(Node(m.nodes(P2).pos));
-			for (int i=0; i<m.numNodeChannels(); i++) {
+
+			for (int i=0; i<m.numNodeChannels(); i++)
+            {
 				m.nodeChannel(i)->addInterpol(P0, P0, 0.5);
 				m.nodeChannel(i)->addInterpol(P1, P1, 0.5);
 				m.nodeChannel(i)->addInterpol(P2, P2, 0.5);
@@ -479,30 +493,35 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 			m.nodes(P2b).pos += offsetVec;
 
 			// create a list of all triangles which touch P0, P1, and P2 from the top,
-			map<int,bool> topTris;
+			std::map<int,bool> topTris;
 			start = cb_old[0].next;
 			end = m.corners(P0P2).prev;
 			current = start;
 			topTris[start/3]=true;
-			do {
+			do
+            {
 				// rotate around vertex P0 counter-clockwise
 				current = m.corners(m.corners(m.corners(current).next).opposite).next;
 				topTris[current/3]=true;
 			} while(current != end);
+
 			start = m.corners(P0P2).next;
 			end = m.corners(P2P1).prev;
 			current = start;
 			topTris[start/3]=true;
-			do {
+			do
+            {
 				// rotate around vertex P0 counter-clockwise
 				current = m.corners(m.corners(m.corners(current).next).opposite).next;
 				topTris[current/3]=true;
 			} while(current != end);
+
 			start = m.corners(P2P1).next;
 			end = cb_old[0].prev;
 			current = start;
 			topTris[start/3]=true;
-			do {
+			do
+            {
 				// rotate around vertex P0 counter-clockwise
 				current = m.corners(m.corners(m.corners(current).next).opposite).next;
 				topTris[current/3]=true;
@@ -511,7 +530,8 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 			// create two new triangles,
 			int Ta = m.addTri(Triangle(P0,P1,P2));
 			int Tb = m.addTri(Triangle(P1b,P0b,P2b));
-			for (int i=0; i<m.numTriChannels(); i++) {
+			for (int i=0; i<m.numTriChannels(); i++)
+            {
 				m.triChannel(i)->addNew();
 				m.triChannel(i)->addNew();
 			}
@@ -519,60 +539,74 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 			// sew the tris to close the cut on each side
 			for(int c=0; c<3; c++) m.addCorner(Corner(Ta, m.tris(Ta).c[c]));
 			for(int c=0; c<3; c++) m.addCorner(Corner(Tb, m.tris(Tb).c[c]));
-			for(int c=0; c<3; c++) {
+			for(int c=0; c<3; c++)
+            {
 				m.corners(Ta,c).next = 3*Ta+((c+1)%3);
 				m.corners(Ta,c).prev = 3*Ta+((c+2)%3);
 				m.corners(Tb,c).next = 3*Tb+((c+1)%3);
 				m.corners(Tb,c).prev = 3*Tb+((c+2)%3);
 			}
+
 			m.corners(Ta,0).opposite = P1P2;
 			m.corners(Ta,1).opposite = P2P0;
 			m.corners(Ta,2).opposite = ca_old[1].prev;
 			m.corners(Tb,0).opposite = P0P2;
 			m.corners(Tb,1).opposite = P2P1;
 			m.corners(Tb,2).opposite = cb_old[1].prev;
-			for (int c=0; c<3; c++) {
+
+			for (int c=0; c<3; c++)
+            {
 				m.corners(m.corners(Ta,c).opposite).opposite = 3*Ta+c;
 				m.corners(m.corners(Tb,c).opposite).opposite = 3*Tb+c;
 			}
+
 			// replace P0,P1,P2 on the top with P0b,P1b,P2b.
-			for(map<int,bool>::iterator tti=topTris.begin(); tti!=topTris.end(); tti++) {
+			for (std::map<int, bool>::iterator tti = topTris.begin(); tti != topTris.end(); tti++)
+            {
 				//cout << "H " << tti->first << " : " << m.tris(tti->first).c[0] << " " << m.tris(tti->first).c[1] << " " << m.tris(tti->first).c[2] << " " << endl;
-				for(int i=0; i<3; i++) {
+				for(int i=0; i<3; i++)
+                {
 					int cn = m.tris(tti->first).c[i];
-					set<int>& ring = m.get1Ring(cn).nodes;          
+					std::set<int>& ring = m.get1Ring(cn).nodes;          
 					
-					if (ring.find(P0) != ring.end() && cn!=P0 && cn!=P1 && cn!=P2 && cn!=P0b && cn!=P1b && cn!=P2b) {
+					if (ring.find(P0) != ring.end() && cn!=P0 && cn!=P1 && cn!=P2 && cn!=P0b && cn!=P1b && cn!=P2b)
+                    {
 						ring.erase(P0);
 						ring.insert(P0b);
 						m.get1Ring(P0).nodes.erase(cn);
 						m.get1Ring(P0b).nodes.insert(cn);
 					}
-					if (ring.find(P1) != ring.end() && cn!=P0 && cn!=P1 && cn!=P2 && cn!=P0b && cn!=P1b && cn!=P2b) {
+
+					if (ring.find(P1) != ring.end() && cn!=P0 && cn!=P1 && cn!=P2 && cn!=P0b && cn!=P1b && cn!=P2b)
+                    {
 						ring.erase(P1);
 						ring.insert(P1b); 
 						m.get1Ring(P1).nodes.erase(cn);
 						m.get1Ring(P1b).nodes.insert(cn);                         
 					}
-					if (ring.find(P2) != ring.end() && cn!=P0 && cn!=P1 && cn!=P2 && cn!=P0b && cn!=P1b && cn!=P2b) {
+
+					if (ring.find(P2) != ring.end() && cn!=P0 && cn!=P1 && cn!=P2 && cn!=P0b && cn!=P1b && cn!=P2b)
+                    {
 						ring.erase(P2);
 						ring.insert(P2b); 
 						m.get1Ring(P2).nodes.erase(cn);
 						m.get1Ring(P2b).nodes.insert(cn);                         
 					}
-					if(cn==P0) {
+
+					if(cn==P0)
+                    {
 						m.tris(tti->first).c[i]=P0b;
 						m.corners(tti->first,i).node = P0b;                        
 						m.get1Ring(P0).tris.erase(tti->first);
 						m.get1Ring(P0b).tris.insert(tti->first);
-					}
-					else if(cn==P1) {
+					} else if(cn==P1)
+                    {
 						m.tris(tti->first).c[i]=P1b;
 						m.corners(tti->first,i).node = P1b;
 						m.get1Ring(P1).tris.erase(tti->first);
 						m.get1Ring(P1b).tris.insert(tti->first);
-					}
-					else if(cn==P2) {
+					} else if(cn==P2)
+                    {
 						m.tris(tti->first).c[i]=P2b;
 						m.corners(tti->first,i).node = P2b;
 						m.get1Ring(P2).tris.erase(tti->first);
@@ -582,11 +616,12 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 			}
 			
 			//m.sanityCheck(true, &deletedNodes, &taintedTris);
-			
 			return;
 		}
+
 		return;
 	}
+
 	if(ca_old[1].opposite>=0 && ca_old[2].opposite>=0 && cb_old[1].opposite>=0 && cb_old[2].opposite>=0 && ca_old[0].opposite>=0 && cb_old[0].opposite>=0 && 
 		((m.corners(ca_old[1].opposite).node == m.corners(ca_old[2].opposite).node && // two-pyramid tubey case (6 tris, 5 verts)
 		m.corners(cb_old[1].opposite).node == m.corners(cb_old[2].opposite).node && 
@@ -601,32 +636,38 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 		// both top and bottom are closed pyramid caps, or it is a single tet
 		// delete the whole component!
 		// flood fill to mark all triangles in the component
-		map<int,bool> markedTris;
-		queue<int> triQ;
+		std::map<int,bool> markedTris;
+		std::queue<int> triQ;
 		triQ.push(trinum);
 		markedTris[trinum] = true;
 		int iters = 0;
-		while(!triQ.empty()) {
+		while(!triQ.empty())
+        {
 			int trival = triQ.front();
 			triQ.pop();
-			for(int i=0; i<3; i++) {
+			for(int i=0; i<3; i++)
+            {
 				int newtri = m.corners(m.corners(trival,i).opposite).tri;
-				if(markedTris.find(newtri)==markedTris.end()) {
+				if(markedTris.find(newtri)==markedTris.end())
+                {
 					triQ.push(newtri);
 					markedTris[newtri] = true;
 				}
 			}
+
 			iters++;
 		}
-		map<int,bool> markedverts;
-		for(map<int,bool>::iterator mit=markedTris.begin(); mit!=markedTris.end(); mit++) {
+
+		std::map<int, bool> markedverts;
+		for(std::map<int, bool>::iterator mit = markedTris.begin(); mit != markedTris.end(); mit++)
+        {
 			taintedTris[mit->first] = true;
 			markedverts[m.tris(mit->first).c[0]] = true;
 			markedverts[m.tris(mit->first).c[1]] = true;
 			markedverts[m.tris(mit->first).c[2]] = true;            
 		}
-		for(map<int,bool>::iterator mit=markedverts.begin(); mit!=markedverts.end(); mit++)
-			deletedNodes.push_back(mit->first);
+
+		for(std::map<int,bool>::iterator mit = markedverts.begin(); mit != markedverts.end(); mit++) deletedNodes.push_back(mit->first);
 		return;
 	}
 
@@ -655,10 +696,12 @@ void CollapseEdge(Mesh& m, const int trinum, const int which, const Vec3 &edgeve
 	// mark the two triangles and the one node for deletion
 	taintedTris[ca_old[0].tri] = true;
 	m.removeTriFromLookup(ca_old[0].tri);
-	if (haveB) {
+	if (haveB)
+    {
 		taintedTris[cb_old[0].tri] = true;
 		m.removeTriFromLookup(cb_old[0].tri);    
 	}
+
 	deletedNodes.push_back(P1);
 	numCollapses++;
 }
