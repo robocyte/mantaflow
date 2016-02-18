@@ -15,7 +15,7 @@
 int main()
 {
     int  dimension  = 3;
-    auto resolution = Manta::Vec3i(200);
+    auto resolution = Manta::Vec3i(100);
 
     if (dimension == 2) resolution.z = 1;
 
@@ -63,7 +63,7 @@ int main()
 
     // rasterize obj
     auto objGrid = Manta::LevelsetGrid(&main_solver);
-    objMesh.computeLevelset(objGrid, 4.0f, -1.0f);
+    objMesh.computeLevelset(objGrid, 2.0f, -1.0f);
     phi.join(objGrid);
 
     flags.updateFromLevelset(phi);
